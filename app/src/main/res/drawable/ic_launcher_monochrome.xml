@@ -1,0 +1,40 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Themed-icon layer (Android 13+). Only the alpha channel is used —
+         the system applies its own tint over whatever fillColor is set here,
+         so color choice doesn't matter, but keep it opaque white for a
+         predictable preview in Android Studio. Full dial + glyph included
+         so the themed version doesn't look like a bare flame with nothing
+         around it on the home screen. -->
+
+    <path android:pathData="M 54,20.5 A 33.5,33.5 0 1 1 54,87.5 A 33.5,33.5 0 1 1 54,20.5 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.4" />
+
+    <path android:pathData="M54,23 L54,29"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round" />
+    <path android:pathData="M85,54 L79,54"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path android:pathData="M54,85 L54,79"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path android:pathData="M23,54 L29,54"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,38 C46,47 40,57 41,67 C41.6,73 46,79 51.5,80.6 C49,76 49.6,71.6 53,70 C55.7,73.7 60.2,74.9 64,72.7 C68,70.3 69.3,64.9 67.3,60 C64.8,53.7 60,47.3 54,38 Z" />
+
+</vector>

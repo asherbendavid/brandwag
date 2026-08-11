@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+
+    <!-- Notification icons must be a flat white/alpha-only silhouette —
+         the system ignores any color here and re-tints per OS version
+         (white on some, dark on others via colorControlNormal), so this
+         MUST NOT carry the gradient/orange from the launcher icon.
+         Kept boldest at 24dp: no thin strokes, no inner detail. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,3.2 C9,6.6 6.6,10.2 6.9,13.6 C7.1,15.8 8.9,17.9 11.1,18.5 C10.2,17.2 10.5,15.6 11.7,15 C13,16.4 15,16.9 16.5,16 C18,15.1 18.5,13 17.6,11.2 C16.4,8.9 14.2,6.4 12,3.2 Z" />
+
+</vector>
