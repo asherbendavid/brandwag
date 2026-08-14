@@ -57,17 +57,29 @@ object OpenMeteoParser {
                         "hourly.time sample: ${times.take(3)}"
             )
 
+
+
         val endIndexExclusive = (startIndex + lookaheadHours).coerceAtMost(times.size)
+
+        val expectedHours = lookaheadHours
 
         val votes = GustQuorumModel.entries.map { model ->
             val key = "wind_gusts_10m_${model.apiParam}"
             val valuesArray = hourly[key] as? JsonArray
-            val maxGust = valuesArray
+            val windowValues = valuesArray
                 ?.subListSafe(startIndex, endIndexExclusive)
-                ?.mapNotNull { it.jsonPrimitive.doubleOrNull }
-                ?.maxOrNull()
+                ?.map { it.jsonPrimitive.doubleOrNull }
+                ?: emptyList()
+
+            val maxGust = if (windowValues.size == expectedHours && windowValues.none { it == null }) {
+                windowValues.filterNotNull().maxOrNull()
+            } else {
+                null
+            }
             ModelVote(model, maxGust)
         }
+
+
 
         val respondingVotes = votes.filter { it.maxGustKmh != null }
         val respondingCount = respondingVotes.size

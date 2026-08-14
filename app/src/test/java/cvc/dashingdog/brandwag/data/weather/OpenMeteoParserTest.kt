@@ -133,27 +133,30 @@ class OpenMeteoParserTest {
     }
 
     @Test
-    fun `per-index null within an array is excluded from that models max`() {
+    fun `per-index null within an array nulls that model's vote entirely`() {
         val hourly = """
-            {
-              "time": ["2026-08-11T00:00", "2026-08-11T01:00"],
-              "wind_gusts_10m_ecmwf_ifs025": [null, 55.0],
-              "wind_gusts_10m_gfs_seamless": [60.0, 60.0],
-              "wind_gusts_10m_icon_seamless": [65.0, 65.0],
-              "wind_gusts_10m_gem_seamless": [10.0, 10.0],
-              "wind_gusts_10m_metno_seamless": [12.0, 12.0]
-            }
-        """.trimIndent()
+        {
+          "time": ["2026-08-11T00:00", "2026-08-11T01:00"],
+          "wind_gusts_10m_ecmwf_ifs025": [null, 55.0],
+          "wind_gusts_10m_gfs_seamless": [60.0, 60.0],
+          "wind_gusts_10m_icon_seamless": [65.0, 65.0],
+          "wind_gusts_10m_gem_seamless": [10.0, 10.0],
+          "wind_gusts_10m_metno_seamless": [12.0, 12.0]
+        }
+    """.trimIndent()
         val response = buildResponse(hourly)
 
         val result = OpenMeteoParser.parseWindQuorum(
             response, nowIso = "2026-08-11T00:00:00", lookaheadHours = 2, gustThresholdKmh = 40.0
         ) as WindQuorumResult.Trusted
 
-        // ecmwf's null at index 0 shouldn't crash - its max should still resolve from index 1
+        // ecmwf has a null at index 0 - only 1 of 2 expected hours present, so it
+        // no longer counts as responding at all, even though index 1 has a real
+        // value. This is the Phase 3 fix: partial coverage nulls the whole vote
+        // rather than silently maxing over whatever's left.
         val ecmwfVote = result.votes.first { it.model == GustQuorumModel.ECMWF_IFS }
-        assertEquals(55.0, ecmwfVote.maxGustKmh)
-        assertEquals(5, result.respondingModels)
+        assertEquals(null, ecmwfVote.maxGustKmh)
+        assertEquals(4, result.respondingModels)
     }
 
     @Test
