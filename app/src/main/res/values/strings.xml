@@ -1,3 +1,19 @@
 <resources>
     <string name="app_name">Brandwag</string>
+
+    <string name="alarm_notification_channel_name">Burn-Day Wind Alarm</string>
+    <string name="alarm_notification_channel_description">Safety-critical alarm for dangerous wind gusts on an armed burn day</string>
+    <string name="alarm_notification_title">Burn-Day Wind Alarm</string>
+    <string name="alarm_notification_text_with_gust">Dangerous gusts forecast: %1$d km/h</string>
+    <string name="alarm_notification_text_no_reading">Dangerous wind conditions forecast</string>
+
+    <string name="alarm_screen_title">⚠️ Wind Alarm</string>
+    <string name="alarm_snooze_button">Snooze</string>
+    <string name="alarm_dismiss_button">Dismiss</string>
+
+    <string name="test_panel_title">Brandwag – Alarm Test Panel</string>
+    <string name="test_panel_subtitle">Phase 4a manual triggers. Not part of the real armed-day trigger chain (that\'s Phase 5).</string>
+    <string name="test_trigger_immediate">Trigger Alarm Immediately</string>
+    <string name="test_trigger_1min">Trigger in 1 Minute (test backgrounded delivery)</string>
+    <string name="test_trigger_5min">Trigger in 5 Minutes (test reboot survival)</string>
 </resources>

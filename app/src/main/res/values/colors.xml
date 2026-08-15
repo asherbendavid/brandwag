@@ -2,4 +2,7 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="alarm_background">#B71C1C</color>
+    <color name="alarm_text">#FFFFFF</color>
 </resources>
