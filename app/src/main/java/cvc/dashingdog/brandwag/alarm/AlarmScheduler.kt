@@ -68,4 +68,5 @@ object AlarmScheduler {
     const val REQUEST_CODE_TEST_IMMEDIATE = 9001
     const val REQUEST_CODE_TEST_1MIN = 9002
     const val REQUEST_CODE_TEST_5MIN = 9003
+    const val REQUEST_CODE_TEST_11MIN = 9004
 }

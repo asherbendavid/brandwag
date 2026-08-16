@@ -1,20 +1,28 @@
 package cvc.dashingdog.brandwag.alarm
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import cvc.dashingdog.brandwag.R
 import cvc.dashingdog.brandwag.databinding.ActivityAlarmBinding
+import kotlinx.coroutines.launch
 
 /**
  * Full-screen alarm UI, launched via the foreground service's full-screen
- * intent. Applies a per-window brightness override so the alarm is visible
- * even if the device's system brightness has been turned down (e.g. workers
- * dimming for battery life during normal operation).
+ * intent. Applies a per-window brightness override and FLAG_KEEP_SCREEN_ON
+ * so the alarm stays visible/vibrating regardless of device brightness or
+ * screen-timeout settings (see keepScreenOn() for the full 4a story).
  *
- * 4a scope only: Snooze/Dismiss both just stop the sound/vibration and
- * close this screen. Real snooze re-scheduling (4b) and dedup-aware dismiss
- * (4c) land in later chunks - see PHASE4 handoff notes.
+ * As of 4c: reflects AlarmStateHolder rather than only trusting its own
+ * launch Intent extras. This is what lets the activity react correctly if
+ * the service stops out from under it (10min timeout, Dismiss, future
+ * Snooze) instead of sitting there showing a dead alarm screen.
+ *
+ * Dismiss is real as of 4c. Snooze remains a stop-and-close stub until 4b.
  */
 class AlarmActivity : AppCompatActivity() {
 
@@ -27,8 +35,32 @@ class AlarmActivity : AppCompatActivity() {
 
         applyBrightnessOverride()
         keepScreenOn()
-        bindGustText()
         bindButtons()
+        observeAlarmState()
+    }
+
+    /**
+     * Single source of truth for what this screen shows, replacing the old
+     * "read the launch Intent once" approach. Handles two cases the old
+     * approach couldn't:
+     *  - Activity launched (e.g. from a stale notification tap) after the
+     *    service has already stopped - finishes immediately rather than
+     *    showing a live-looking screen for an alarm that's already over.
+     *  - Activity visible when the service stops out from under it - reacts
+     *    and finishes, instead of relying on the service to somehow reach
+     *    into the activity directly.
+     */
+    private fun observeAlarmState() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                AlarmStateHolder.state.collect { state ->
+                    when (state) {
+                        is AlarmStateHolder.State.Sounding -> bindGustText(state.maxGustKmh)
+                        AlarmStateHolder.State.Idle -> finish()
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -61,11 +93,7 @@ class AlarmActivity : AppCompatActivity() {
         window.attributes = params
     }
 
-    private fun bindGustText() {
-        val maxGustKmh = intent.getDoubleExtra(
-            AlarmForegroundService.EXTRA_MAX_GUST_KMH,
-            Double.NaN
-        )
+    private fun bindGustText(maxGustKmh: Double) {
         binding.alarmGustText.text = if (maxGustKmh.isNaN()) {
             getString(R.string.alarm_notification_text_no_reading)
         } else {
@@ -74,23 +102,26 @@ class AlarmActivity : AppCompatActivity() {
     }
 
     private fun bindButtons() {
-        // Both wired to the same stop-and-close action for 4a, per Chris's instruction -
-        // real Snooze (4b) and Dismiss (4c) behavior diverge in later chunks.
-        binding.snoozeButton.setOnClickListener { stopAlarmAndFinish() }
-        binding.dismissButton.setOnClickListener { stopAlarmAndFinish() }
+        binding.dismissButton.setOnClickListener {
+            // Real dismiss (4c): stop the service. Deliberately does NOT touch
+            // LastCheckRepository/TriggerLogic.DEFAULT_COOLDOWN - the next poll's
+            // decision is unaffected by whether this alarm was dismissed. finish()
+            // isn't called directly here; AlarmStateHolder flipping to Idle (inside
+            // stopAlarm()) is what triggers observeAlarmState() to finish this screen -
+            // single path for "alarm ended," same one the 10min timeout uses.
+            AlarmForegroundService.stop(this)
+        }
+        binding.snoozeButton.setOnClickListener {
+            // Still a stop-and-close stub until 4b builds real snooze scheduling.
+            AlarmForegroundService.stop(this)
+        }
     }
 
-    private fun stopAlarmAndFinish() {
-        AlarmForegroundService.stop(this)
-        finish()
-    }
-
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Guard against a second full-screen intent launching a duplicate instance
-        // while one is already showing (FLAG_ACTIVITY_CLEAR_TOP should prevent this
-        // in practice, but an explicit re-bind here is cheap insurance).
         setIntent(intent)
-        bindGustText()
+        // Gust text now comes from AlarmStateHolder (see observeAlarmState), not the
+        // Intent, so no re-bind needed here - kept override only to accept the new
+        // Intent cleanly and avoid a stale getIntent() elsewhere.
     }
 }

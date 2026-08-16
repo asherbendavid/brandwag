@@ -63,4 +63,48 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <Button
+        android:id="@+id/trigger11MinButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/test_trigger_11min"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/trigger5MinButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/triggerDedupWideGapButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/test_trigger_dedup_wide"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/trigger11MinButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/triggerDedupTightRaceButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/test_trigger_dedup_tight"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/triggerDedupWideGapButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/triggerDedupTightRaceReversedButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/test_trigger_dedup_tight_reversed"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/triggerDedupTightRaceButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

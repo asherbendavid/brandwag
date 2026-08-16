@@ -5,6 +5,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import cvc.dashingdog.brandwag.alarm.AlarmCheckPipeline
 import cvc.dashingdog.brandwag.alarm.AlarmForegroundService
 import cvc.dashingdog.brandwag.alarm.AlarmScheduler
 
@@ -55,6 +56,44 @@ class MainActivity : AppCompatActivity() {
                 maxGustKmh = testMaxGustKmh,
                 requestCode = AlarmScheduler.REQUEST_CODE_TEST_5MIN
             )
+        }
+
+        findViewById<android.widget.Button>(R.id.trigger11MinButton).setOnClickListener {
+            // Proxy for the "stale activity" edge case, which can't be triggered directly -
+            // the full-screen alarm blocks access to these buttons while it's showing.
+            // Instead: tap this, then immediately tap Trigger Immediately. The first alarm
+            // auto-stops at ~10min, returning control; this one fires ~1min later, proving
+            // the 10min timeout genuinely releases everything and a fresh alarm starts clean
+            // with no leftover state from the first.
+            AlarmScheduler.scheduleAlarm(
+                context = this,
+                triggerAtMillis = System.currentTimeMillis() + 11 * 60_000L,
+                maxGustKmh = testMaxGustKmh,
+                requestCode = AlarmScheduler.REQUEST_CODE_TEST_11MIN
+            )
+        }
+
+        findViewById<android.widget.Button>(R.id.triggerDedupWideGapButton).setOnClickListener {
+            // Wide gap (3s malformed vs ~200-600ms good): easy to pass, mainly proves
+            // evaluation isn't gated at all - not a real test of the commit mutex itself.
+            AlarmCheckPipeline.trigger(this, "malformed", simulateMalformed = true)
+            AlarmCheckPipeline.trigger(this, "good-data", simulateGustKmh = testMaxGustKmh)
+        }
+
+        findViewById<android.widget.Button>(R.id.triggerDedupTightRaceButton).setOnClickListener {
+            // Tight race, submitted in the order malformed-then-good, both ~5-10ms delay -
+            // forces genuine near-simultaneous arrival at the commit mutex. This is the
+            // test that actually exercises Mutex correctness under contention.
+            AlarmCheckPipeline.trigger(this, "malformed", simulateMalformed = true, evaluateDelayMs = 7L)
+            AlarmCheckPipeline.trigger(this, "good-data", simulateGustKmh = testMaxGustKmh, evaluateDelayMs = 9L)
+        }
+
+        findViewById<android.widget.Button>(R.id.triggerDedupTightRaceReversedButton).setOnClickListener {
+            // Same tight race, submission order reversed (good-data submitted first this
+            // time). Proves the result doesn't depend on which trigger was SUBMITTED first,
+            // only on genuine data validity - submission order must never matter.
+            AlarmCheckPipeline.trigger(this, "good-data", simulateGustKmh = testMaxGustKmh, evaluateDelayMs = 8L)
+            AlarmCheckPipeline.trigger(this, "malformed", simulateMalformed = true, evaluateDelayMs = 6L)
         }
     }
 }

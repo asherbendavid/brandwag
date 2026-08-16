@@ -16,4 +16,8 @@
     <string name="test_trigger_immediate">Trigger Alarm Immediately</string>
     <string name="test_trigger_1min">Trigger in 1 Minute (test backgrounded delivery)</string>
     <string name="test_trigger_5min">Trigger in 5 Minutes (test reboot survival)</string>
+    <string name="test_trigger_11min">Trigger in 11 Minutes (tap, then Immediate)</string>
+    <string name="test_trigger_dedup_wide">Dedup Test: Wide Gap (easy)</string>
+    <string name="test_trigger_dedup_tight">Dedup Test: Tight Race (malformed first)</string>
+    <string name="test_trigger_dedup_tight_reversed">Dedup Test: Tight Race (good-data first)</string>
 </resources>

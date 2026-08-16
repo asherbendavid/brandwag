@@ -32,6 +32,7 @@ class AlarmForegroundService : Service() {
     private var mediaPlayer: MediaPlayer? = null
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var isSounding = false // idempotency guard - see startAlarm()
 
     private val autoStopHandler = Handler(Looper.getMainLooper())
     private val autoStopRunnable = Runnable {
@@ -58,6 +59,17 @@ class AlarmForegroundService : Service() {
     }
 
     private fun startAlarm(maxGustKmh: Double) {
+        if (isSounding) {
+            // Idempotency guard: a second ACTION_START while already sounding must never spin
+            // up a duplicate MediaPlayer (leak) or restart the vibration waveform/wake lock.
+            // This is defense-in-depth independent of the upstream commit-phase Mutex (4c) -
+            // if that mutex is ever bypassed or misused, this is the last line of defense.
+            android.util.Log.i(TAG, "startAlarm() called while already sounding - no-op")
+            return
+        }
+        android.util.Log.i(TAG, "startAlarm() - starting sound/vibration/wakelock/notification, maxGustKmh=$maxGustKmh")
+        isSounding = true
+        AlarmStateHolder.setSounding(maxGustKmh)
         acquireWakeLock()
         startForeground(NOTIFICATION_ID, buildNotification(maxGustKmh))
         startSound()
@@ -66,6 +78,16 @@ class AlarmForegroundService : Service() {
     }
 
     private fun stopAlarm() {
+        if (!isSounding) {
+            // Idempotent: dismiss racing the 10-min timeout, or any other double-stop path,
+            // must not throw or double-run cleanup (e.g. stopSelf() on an already-stopped service).
+            android.util.Log.i(TAG, "stopAlarm() called while already idle - no-op")
+            return
+        }
+        android.util.Log.i(TAG, "stopAlarm() - stopping sound/vibration/wakelock/notification")
+        isSounding = false
+        AlarmStateHolder.setIdle()
+
         autoStopHandler.removeCallbacks(autoStopRunnable)
 
         mediaPlayer?.apply {
@@ -201,6 +223,7 @@ class AlarmForegroundService : Service() {
         const val EXTRA_MAX_GUST_KMH = "cvc.dashingdog.brandwag.alarm.extra.MAX_GUST_KMH"
 
         private const val CHANNEL_ID = "burn_wind_alarm"
+        private const val TAG = "AlarmForegroundService"
         private const val NOTIFICATION_ID = 1001
         private const val LOOP_TIMEOUT_MS = 10 * 60 * 1000L // 10 min: primary auto-stop for the sound/vibration loop
         private const val MAX_ALARM_DURATION_MS = 15 * 60 * 1000L // 15 min: secondary wake lock backstop, see acquireWakeLock()
