@@ -112,8 +112,11 @@ class AlarmActivity : AppCompatActivity() {
             AlarmForegroundService.stop(this)
         }
         binding.snoozeButton.setOnClickListener {
-            // Still a stop-and-close stub until 4b builds real snooze scheduling.
-            AlarmForegroundService.stop(this)
+            // Real snooze (4b): persists SnoozeState, schedules the AlarmManager
+            // re-sound callback, and stops the current sound/vibration loop - all
+            // handled inside AlarmForegroundService.snoozeAlarm(). Screen closes
+            // via AlarmStateHolder flipping to Idle, same path as Dismiss/timeout.
+            AlarmForegroundService.snooze(this)
         }
     }
 

@@ -1,5 +1,6 @@
 package cvc.dashingdog.brandwag.alarm
 
+import cvc.dashingdog.brandwag.data.repository.SnoozeRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,12 +78,29 @@ object AlarmCheckPipeline {
      * Serialized phase. Stands in for LastCheckRepository.recordOutcome()
      * (Phase 2) + conditionally starting AlarmForegroundService. Only this
      * step is mutex-gated.
+     *
+     * 4b addition: an Alarm decision arriving while a snooze is active does
+     * NOT start the service - per Chris's confirmed scope, it only updates
+     * the persisted gust reading, so the eventual snooze re-sound shows the
+     * latest data rather than whatever was current when Snooze was tapped.
+     * The re-sound itself comes from the snooze's own AlarmManager callback
+     * (AlarmScheduler.scheduleSnooze -> AlarmTestReceiver -> service start),
+     * never from this pipeline re-deciding anything mid-snooze.
      */
-    private fun commit(context: android.content.Context, label: String, decision: SimulatedDecision) {
+    private suspend fun commit(context: android.content.Context, label: String, decision: SimulatedDecision) {
         when (decision) {
             is SimulatedDecision.Alarm -> {
-                android.util.Log.i("AlarmCheckPipeline", "[$label] Alarm decision -> starting service")
-                AlarmForegroundService.start(context, decision.maxGustKmh)
+                val snoozeState = SnoozeRepository(context).getSnoozeState()
+                if (snoozeState.active) {
+                    android.util.Log.i(
+                        "AlarmCheckPipeline",
+                        "[$label] Alarm decision, but snooze active until ${snoozeState.until} - updating gust only, not re-sounding"
+                    )
+                    SnoozeRepository(context).updateGustIfActive(decision.maxGustKmh)
+                } else {
+                    android.util.Log.i("AlarmCheckPipeline", "[$label] Alarm decision -> starting service")
+                    AlarmForegroundService.start(context, decision.maxGustKmh)
+                }
             }
             is SimulatedDecision.Clear -> {
                 android.util.Log.i("AlarmCheckPipeline", "[$label] Clear - no action")

@@ -18,6 +18,15 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import cvc.dashingdog.brandwag.R
+import cvc.dashingdog.brandwag.data.repository.AlarmSoundingRepository
+import cvc.dashingdog.brandwag.data.repository.SnoozeRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 /**
  * Owns the sound + vibration loop for a burn-wind alarm. Started via
@@ -33,6 +42,13 @@ class AlarmForegroundService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var isSounding = false // idempotency guard - see startAlarm()
+
+    // Service methods aren't suspend, but the DataStore writes below are - fire-and-forget
+    // from the sound/vibration loop's perspective, cancelled on onDestroy() so nothing
+    // leaks past the service's own lifetime.
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val alarmSoundingRepository by lazy { AlarmSoundingRepository(applicationContext) }
+    private val snoozeRepository by lazy { SnoozeRepository(applicationContext) }
 
     private val autoStopHandler = Handler(Looper.getMainLooper())
     private val autoStopRunnable = Runnable {
@@ -51,6 +67,7 @@ class AlarmForegroundService : Service() {
                 startAlarm(maxGustKmh)
             }
             ACTION_STOP -> stopAlarm()
+            ACTION_SNOOZE -> snoozeAlarm()
             else -> stopAlarm() // defensive: unknown/missing action must never leave it sounding silently un-actionable
         }
         return START_NOT_STICKY // deliberate: a killed service should NOT auto-restart mid-loop with stale state.
@@ -70,6 +87,7 @@ class AlarmForegroundService : Service() {
         android.util.Log.i(TAG, "startAlarm() - starting sound/vibration/wakelock/notification, maxGustKmh=$maxGustKmh")
         isSounding = true
         AlarmStateHolder.setSounding(maxGustKmh)
+        serviceScope.launch { alarmSoundingRepository.setSounding(maxGustKmh) }
         acquireWakeLock()
         startForeground(NOTIFICATION_ID, buildNotification(maxGustKmh))
         startSound()
@@ -87,6 +105,7 @@ class AlarmForegroundService : Service() {
         android.util.Log.i(TAG, "stopAlarm() - stopping sound/vibration/wakelock/notification")
         isSounding = false
         AlarmStateHolder.setIdle()
+        serviceScope.launch { alarmSoundingRepository.setIdle() }
 
         autoStopHandler.removeCallbacks(autoStopRunnable)
 
@@ -105,11 +124,38 @@ class AlarmForegroundService : Service() {
         stopSelf()
     }
 
+    /**
+     * Snooze (4b): persists the schedule, asks AlarmScheduler to register the
+     * AlarmManager re-sound callback, then reuses stopAlarm()'s cleanup - a
+     * snooze IS a clean stop from the sound/vibration/AlarmSoundingState
+     * point of view. Distinct from AlarmSoundingState (which only tracks
+     * "is the loop making noise right now") - SnoozeState is what remembers
+     * a re-sound is still owed.
+     */
+    private fun snoozeAlarm() {
+        val currentGust = (AlarmStateHolder.state.value as? AlarmStateHolder.State.Sounding)?.maxGustKmh
+            ?: Double.NaN
+        val until = Instant.now().plus(SNOOZE_DURATION_MINUTES, ChronoUnit.MINUTES)
+
+        android.util.Log.i(TAG, "snoozeAlarm() - scheduling re-sound at $until, maxGustKmh=$currentGust")
+
+        serviceScope.launch { snoozeRepository.schedule(until, currentGust) }
+        AlarmScheduler.scheduleSnooze(applicationContext, until, currentGust)
+
+        stopAlarm()
+    }
+
     override fun onDestroy() {
         // Safety net: if something stops this service via a path other than ACTION_STOP
         // (shouldn't happen given START_NOT_STICKY, but a killed/reaped process must
         // never leave a wake lock held or a MediaPlayer instance leaked).
         stopAlarm()
+        // Deliberately NOT calling serviceScope.cancel() here: stopAlarm() above just
+        // launched the AlarmSoundingRepository.setIdle() write onto serviceScope, and
+        // cancelling immediately risks racing that write before it reaches disk - which
+        // would defeat the whole point of the breadcrumb for a clean stop. These are
+        // short-lived DataStore writes on a shared dispatcher, not a leaked long-running
+        // job, so letting them finish naturally is the safer choice here.
         super.onDestroy()
     }
 
@@ -220,6 +266,7 @@ class AlarmForegroundService : Service() {
     companion object {
         const val ACTION_START = "cvc.dashingdog.brandwag.alarm.action.START"
         const val ACTION_STOP = "cvc.dashingdog.brandwag.alarm.action.STOP"
+        const val ACTION_SNOOZE = "cvc.dashingdog.brandwag.alarm.action.SNOOZE"
         const val EXTRA_MAX_GUST_KMH = "cvc.dashingdog.brandwag.alarm.extra.MAX_GUST_KMH"
 
         private const val CHANNEL_ID = "burn_wind_alarm"
@@ -227,6 +274,9 @@ class AlarmForegroundService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val LOOP_TIMEOUT_MS = 10 * 60 * 1000L // 10 min: primary auto-stop for the sound/vibration loop
         private const val MAX_ALARM_DURATION_MS = 15 * 60 * 1000L // 15 min: secondary wake lock backstop, see acquireWakeLock()
+
+        // Hardcoded default per Chris (4b planning) - user-settable once Settings persistence exists.
+        const val SNOOZE_DURATION_MINUTES = 5L
 
         fun start(context: Context, maxGustKmh: Double) {
             val intent = Intent(context, AlarmForegroundService::class.java).apply {
@@ -239,6 +289,13 @@ class AlarmForegroundService : Service() {
         fun stop(context: Context) {
             val intent = Intent(context, AlarmForegroundService::class.java).apply {
                 action = ACTION_STOP
+            }
+            context.startService(intent)
+        }
+
+        fun snooze(context: Context) {
+            val intent = Intent(context, AlarmForegroundService::class.java).apply {
+                action = ACTION_SNOOZE
             }
             context.startService(intent)
         }
