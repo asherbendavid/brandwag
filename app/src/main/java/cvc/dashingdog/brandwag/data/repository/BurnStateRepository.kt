@@ -28,6 +28,24 @@ class BurnStateRepository(private val dataStore: DataStore<Preferences>) {
         return resolveBurnState(readRaw(), today)
     }
 
+    /**
+     * Returns the stored state EXACTLY as persisted, with no resolveBurnState()
+     * interpretation applied. Added for Phase 4d's boot-recovery clock-sanity
+     * check: resolveBurnState()'s fail-safe branches return BurnState.IDLE,
+     * which DISCARDS armedDate - a caller holding only that resolved result has
+     * no way to compare the clock against the original armedDate anymore, since
+     * it's already gone. Callers needing to reason about whether the clock
+     * itself is trustworthy (rather than just "what's the current burn state")
+     * must read the raw value first, BEFORE calling getBurnState().
+     *
+     * Does not resolve rollover/clock-skew - callers using this for anything
+     * other than a pre-resolution sanity check should almost certainly be
+     * calling getBurnState() instead.
+     */
+    suspend fun getRawBurnState(): BurnState {
+        return readRaw()
+    }
+
     suspend fun setArmed(requestedArmed: Boolean, today: LocalDate = LocalDate.now()): BurnState {
         val resolved = resolveBurnState(readRaw(), today) // resolve-then-apply
         val newState = applyBurnToggle(resolved, requestedArmed, today)

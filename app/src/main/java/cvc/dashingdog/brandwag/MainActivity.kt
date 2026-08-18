@@ -5,9 +5,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import cvc.dashingdog.brandwag.alarm.AlarmCheckPipeline
 import cvc.dashingdog.brandwag.alarm.AlarmForegroundService
 import cvc.dashingdog.brandwag.alarm.AlarmScheduler
+import cvc.dashingdog.brandwag.data.repository.BurnStateRepository
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -94,6 +97,31 @@ class MainActivity : AppCompatActivity() {
             // only on genuine data validity - submission order must never matter.
             AlarmCheckPipeline.trigger(this, "good-data", simulateGustKmh = testMaxGustKmh, evaluateDelayMs = 8L)
             AlarmCheckPipeline.trigger(this, "malformed", simulateMalformed = true, evaluateDelayMs = 6L)
+        }
+
+        findViewById<android.widget.Button>(R.id.debugArmButton).setOnClickListener {
+            // DEBUG ONLY - no real arm-toggle UI exists yet (that's a later phase). This
+            // ONLY flips the persisted flag via the existing Phase 2 repository/domain logic -
+            // deliberately NOT wired to anything else. In particular this must NOT survive
+            // as a real UI action once Settings/burn-toggle exists; remove this button then.
+            lifecycleScope.launch {
+                BurnStateRepository(this@MainActivity).setArmed(true)
+                android.util.Log.i("MainActivity", "Debug: burn state armed")
+            }
+        }
+
+        findViewById<android.widget.Button>(R.id.debugDisarmButton).setOnClickListener {
+            // DEBUG ONLY - same as above. Deliberately calls ONLY setArmed(false), nothing
+            // else (no AlarmScheduler.cancelSnooze(), no AlarmDisarmHandler). This is what
+            // lets 4d testing simulate a REALISTIC disarm - e.g. armedDate rolling over
+            // stale overnight while the phone was off - where genuinely nothing else runs
+            // to clean up pending alarm/snooze state except whatever reads burn state next
+            // (BootCompletedReceiver). Tapping AlarmDisarmHandler.onDisarmed() here would
+            // test a different, easier scenario that doesn't match the real gap.
+            lifecycleScope.launch {
+                BurnStateRepository(this@MainActivity).setArmed(false)
+                android.util.Log.i("MainActivity", "Debug: burn state disarmed (no cleanup triggered)")
+            }
         }
     }
 }

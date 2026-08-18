@@ -87,7 +87,17 @@ class AlarmForegroundService : Service() {
         android.util.Log.i(TAG, "startAlarm() - starting sound/vibration/wakelock/notification, maxGustKmh=$maxGustKmh")
         isSounding = true
         AlarmStateHolder.setSounding(maxGustKmh)
-        serviceScope.launch { alarmSoundingRepository.setSounding(maxGustKmh) }
+        serviceScope.launch {
+            DebugTestDelay.mark("startAlarm: about to persist AlarmSoundingState.setSounding")
+            alarmSoundingRepository.setSounding(maxGustKmh)
+            val readBack = alarmSoundingRepository.getState()
+            android.util.Log.i(TAG, "startAlarm: AlarmSoundingState write completed - read-back isSounding=${readBack.isSounding}, maxGustKmh=${readBack.maxGustKmh}")
+            // A sounding alarm supersedes any pending snooze - clears stale SnoozeState left
+            // over from a snooze re-fire (or any other path that reaches startAlarm() while
+            // SnoozeState still says active). Without this, SnoozeState.active could linger
+            // true indefinitely after the alarm it was scheduling has already re-fired.
+            snoozeRepository.clear()
+        }
         acquireWakeLock()
         startForeground(NOTIFICATION_ID, buildNotification(maxGustKmh))
         startSound()
@@ -105,7 +115,12 @@ class AlarmForegroundService : Service() {
         android.util.Log.i(TAG, "stopAlarm() - stopping sound/vibration/wakelock/notification")
         isSounding = false
         AlarmStateHolder.setIdle()
-        serviceScope.launch { alarmSoundingRepository.setIdle() }
+        serviceScope.launch {
+            DebugTestDelay.mark("stopAlarm: about to persist AlarmSoundingState.setIdle")
+            alarmSoundingRepository.setIdle()
+            val readBack = alarmSoundingRepository.getState()
+            android.util.Log.i(TAG, "stopAlarm: AlarmSoundingState write completed - read-back isSounding=${readBack.isSounding}")
+        }
 
         autoStopHandler.removeCallbacks(autoStopRunnable)
 
@@ -139,7 +154,12 @@ class AlarmForegroundService : Service() {
 
         android.util.Log.i(TAG, "snoozeAlarm() - scheduling re-sound at $until, maxGustKmh=$currentGust")
 
-        serviceScope.launch { snoozeRepository.schedule(until, currentGust) }
+        serviceScope.launch {
+            DebugTestDelay.mark("snoozeAlarm: about to persist SnoozeState.schedule")
+            snoozeRepository.schedule(until, currentGust)
+            val readBack = snoozeRepository.getSnoozeState()
+            android.util.Log.i(TAG, "snoozeAlarm: SnoozeState write completed - read-back active=${readBack.active}, until=${readBack.until}, maxGustKmh=${readBack.maxGustKmh}")
+        }
         AlarmScheduler.scheduleSnooze(applicationContext, until, currentGust)
 
         stopAlarm()

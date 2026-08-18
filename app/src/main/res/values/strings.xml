@@ -20,4 +20,7 @@
     <string name="test_trigger_dedup_wide">Dedup Test: Wide Gap (easy)</string>
     <string name="test_trigger_dedup_tight">Dedup Test: Tight Race (malformed first)</string>
     <string name="test_trigger_dedup_tight_reversed">Dedup Test: Tight Race (good-data first)</string>
+
+    <string name="debug_arm_button">DEBUG: Arm Burn State (flag only, no cleanup)</string>
+    <string name="debug_disarm_button">DEBUG: Disarm Burn State (flag only, no cleanup)</string>
 </resources>

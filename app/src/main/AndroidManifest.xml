@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -49,6 +50,38 @@
             android:name=".alarm.AlarmTestReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".alarm.BootCompletedReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <!--
+            exported="true" is required here even though no other app should ever
+            legitimately send this Intent - a manifest-declared receiver for an
+            implicit SYSTEM broadcast (BOOT_COMPLETED) must be exported for the OS
+            itself to deliver it. This is different from AlarmTestReceiver's
+            exported="false", which only ever receives our OWN PendingIntents.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- Some older/OEM builds send this instead of or alongside BOOT_COMPLETED -->
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".alarm.TimeChangedReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <!--
+            TIME_SET and TIMEZONE_CHANGED are both confirmed exempt from the API26+
+            implicit-broadcast manifest restriction (same exemption category as
+            BOOT_COMPLETED) - see developer.android.com/develop/background-work/
+            background-tasks/broadcasts/broadcast-exceptions
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
