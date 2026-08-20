@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import cvc.dashingdog.brandwag.alarm.AlarmCheckPipeline
 import cvc.dashingdog.brandwag.alarm.AlarmForegroundService
 import cvc.dashingdog.brandwag.alarm.AlarmScheduler
+import cvc.dashingdog.brandwag.arm.StubArmedScheduler
 import cvc.dashingdog.brandwag.data.repository.BurnStateRepository
 import kotlinx.coroutines.launch
 
@@ -80,6 +81,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 armGateController.commitArm()
                 android.util.Log.i("MainActivity", "Armed via real arm switch")
+                StubArmedScheduler.onArmed(this@MainActivity)
             } catch (e: Exception) {
                 android.util.Log.e("MainActivity", "Failed to persist armed state: ${e.message}")
                 snapSwitchOff()
@@ -90,36 +92,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun attemptDisarm() {
         lifecycleScope.launch {
-            // Step 1 (CRITICAL): persist armed=false first. This is the write that
-            // actually governs whether TriggerLogic/future polls treat the farm as
-            // armed - if this fails, the switch must NOT show disarmed, because the
-            // underlying state genuinely is still armed. This is the must-never case:
-            // showing disarmed while still armed risks a real wind-pickup alarm being
-            // silently missed by the user believing they've already disarmed.
-            val armedStateCleared = try {
-                cvc.dashingdog.brandwag.data.repository.BurnStateRepository(this@MainActivity).setArmed(false)
-                true
-            } catch (e: Exception) {
-                android.util.Log.e("MainActivity", "CRITICAL: setArmed(false) failed - still armed: ${e.message}")
-                false
-            }
-
-            if (!armedStateCleared) {
-                snapSwitchOn() // reflect reality - still armed - do NOT show disarmed
-                showDisarmCriticalFailureDialog()
-                return@launch
-            }
-
-            // Step 2 (lower stakes): armed=false is now confirmed persisted. Cancelling
-            // the pending snooze/scheduled alarm is still important, but a failure here
-            // means "a stale alarm might still sound once" not "the farm is silently
-            // still armed" - worth a distinct, less alarming message.
-            try {
-                cvc.dashingdog.brandwag.alarm.AlarmDisarmHandler.onDisarmed(this@MainActivity)
-                android.util.Log.i("MainActivity", "Disarmed via real arm switch")
-            } catch (e: Exception) {
-                android.util.Log.e("MainActivity", "Disarmed, but cancelling pending alarm/snooze failed: ${e.message}")
-                showDisarmPartialFailureDialog()
+            when (cvc.dashingdog.brandwag.arm.CriticalDisarm.disarm(this@MainActivity)) {
+                cvc.dashingdog.brandwag.arm.CriticalDisarmResult.Success -> {
+                    android.util.Log.i("MainActivity", "Disarmed via real arm switch")
+                    StubArmedScheduler.onDisarmed(this@MainActivity)
+                }
+                cvc.dashingdog.brandwag.arm.CriticalDisarmResult.CriticalWriteFailed -> {
+                    snapSwitchOn()
+                    showDisarmCriticalFailureDialog()
+                }
+                cvc.dashingdog.brandwag.arm.CriticalDisarmResult.CleanupFailed -> {
+                    StubArmedScheduler.onDisarmed(this@MainActivity) // still stop the stub chain, disarm itself succeeded
+                    showDisarmPartialFailureDialog()
+                }
             }
         }
     }
@@ -202,6 +187,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindTestTriggers() {
+        findViewById<android.widget.Button>(R.id.debugRunScheduledCheckButton).setOnClickListener {
+            // DEBUG ONLY - calls the exact same StubArmedCheckLogic.runTick() the real
+            // AlarmManager-driven tick would call, just without waiting for the clock.
+            // This is what lets the full blip/disarm sequence be tested deterministically:
+            // tap, toggle a permission in Settings, tap again, observe.
+            lifecycleScope.launch {
+                android.util.Log.i("MainActivity", "Debug: running scheduled check manually")
+                cvc.dashingdog.brandwag.arm.StubArmedCheckLogic.runTick(this@MainActivity)
+            }
+        }
+
         findViewById<android.widget.Button>(R.id.debugCheckGateStatusButton).setOnClickListener {
             // DEBUG ONLY - read-only, no dialogs, no side effects. Quick sanity check of
             // ArmGateChecks against current device state before exercising the full

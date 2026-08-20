@@ -27,17 +27,18 @@
 
     <string name="debug_check_gate_status">DEBUG: Check Gate Status (log only)</string>
     <string name="debug_run_arm_gate_sequence">DEBUG: Run Arm Gate Sequence</string>
+    <string name="debug_run_scheduled_check">DEBUG: Run Scheduled Check</string>
 
-    <string name="battery_dialog_title">Wind Warning Needs This to Work</string>
+    <string name="battery_dialog_title">Battery Optimization Permission</string>
     <string name="battery_dialog_body">Brandwag\'s alarm is a backup check — a second, independent warning in case the wind changes after the fire department\'s all-clear. It doesn\'t replace any of your existing permit conditions or the fire department\'s authority; it only catches a new, unexpected shift in forecast wind.\n\nFor that backup to actually fire when it matters, Android needs to let Brandwag run in the background without being frozen to save battery. Without this, the app can\'t be relied on to sound the alarm at all — not a partial risk, a non-functioning one.\n\nYou\'re free to decline. If you do, Brandwag simply won\'t arm — better to know the backup isn\'t active than to trust one that silently isn\'t working.</string>
     <string name="battery_dialog_grant">Grant Exemption</string>
 
-    <string name="dnd_dialog_title">One More Permission for the Alarm to Sound</string>
+    <string name="dnd_dialog_title">Do Not Disturb Access Permission</string>
     <string name="dnd_dialog_body">Brandwag\'s alarm is a backup check — a second, independent warning in case the wind changes after the fire department\'s all-clear. It doesn\'t replace your permit conditions or the fire department\'s authority; it only catches a new, unexpected shift in forecast wind.\n\nIf your phone is in Do Not Disturb when the alarm needs to fire, Android will silently block it unless Brandwag has permission to bypass Do Not Disturb specifically for this alarm. Without that permission, the backup warning can\'t be counted on to actually get through.\n\nYou\'re free to decline. If you do, Brandwag simply won\'t arm — better to know the backup isn\'t active than to trust one that silently isn\'t working.</string>
     <string name="dnd_dialog_open_settings">Open Notification Access Settings</string>
 
     <string name="blocked_dialog_title">Backup Warning Not Active</string>
-    <string name="blocked_dialog_body">Brandwag hasn\'t been armed. Without both permissions granted, the alarm can\'t reliably fire if wind conditions shift — so arming would give a false sense of a backup that isn\'t actually working.\n\nYou can grant these anytime from the arm switch, or from Android Settings directly.</string>
+    <string name="blocked_dialog_body">Brandwag hasn\'t been armed. Without both permissions granted (Battery Optimization and Do not Disturb), the alarm can\'t reliably fire if wind conditions shift — so arming would give a false sense of a backup that isn\'t actually working.\n\nYou can grant these anytime from the arm switch, or from Android Settings directly.</string>
 
     <string name="dialog_not_now">Not Now</string>
     <string name="dialog_ok">OK</string>
@@ -53,4 +54,17 @@
 
     <string name="disarm_partial_failure_title">Disarmed, But Check This</string>
     <string name="disarm_partial_failure_body">Brandwag is now disarmed and will not start a new alarm. However, a previously scheduled alarm or snooze may not have been fully cancelled and could still sound once. If it does, it\'s safe to dismiss — Brandwag is genuinely off.</string>
+
+    <string name="safety_permission_channel_name">Safety Permission Status</string>
+    <string name="safety_permission_channel_description">Alerts if a permission Brandwag needs for the wind alarm goes missing</string>
+
+    <string name="blip_battery_first_title">Battery Exemption Missing</string>
+    <string name="blip_battery_first_body">Brandwag no longer has battery optimization exemption. If not restored by the next check, Brandwag will auto-disarm — the wind alarm cannot be relied on without it.</string>
+    <string name="blip_battery_disarm_title">Auto-Disarmed: Battery Exemption Missing</string>
+    <string name="blip_battery_disarm_body">Battery optimization exemption was still missing on the next check. Brandwag has disarmed itself — the wind alarm cannot be relied on without it. Re-arm once the exemption is restored.</string>
+
+    <string name="blip_dnd_first_title">Do Not Disturb Access Missing</string>
+    <string name="blip_dnd_first_body">Brandwag no longer has Do Not Disturb bypass access. If not restored by the next check, Brandwag will auto-disarm — the alarm may be silently blocked during Do Not Disturb without it.</string>
+    <string name="blip_dnd_disarm_title">Auto-Disarmed: DND Access Missing</string>
+    <string name="blip_dnd_disarm_body">Do Not Disturb access was still missing on the next check. Brandwag has disarmed itself — the alarm could be silently blocked without it. Re-arm once access is restored.</string>
 </resources>
