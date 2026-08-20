@@ -18,6 +18,16 @@ class MainActivity : AppCompatActivity() {
     // will supply this from TriggerLogic.evaluate()'s actual Alarm.maxGustKmh.
     private val testMaxGustKmh = 65.0
 
+    // Tracks which arm-gate dialog the debug sequence sent the user off to
+    // Settings for, so onResume() knows which recheck function to call on
+    // return. Real arm UI (Layer B) will need the same tracking - this is
+    // the debug-button proving ground for that pattern, not a throwaway.
+    private lateinit var armGateController: cvc.dashingdog.brandwag.arm.ArmGateController
+    private lateinit var armSwitch: com.google.android.material.materialswitch.MaterialSwitch
+
+    private enum class PendingGate { NONE, BATTERY_EXEMPTION, DND_ACCESS }
+    private var pendingGate = PendingGate.NONE
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -28,10 +38,198 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        armGateController = cvc.dashingdog.brandwag.arm.ArmGateController(this)
+        armSwitch = findViewById(R.id.armSwitch)
+        bindArmSwitch()
         bindTestTriggers()
     }
 
+    private fun bindArmSwitch() {
+        // Reflect real persisted state on load - Chris's call, matters once this isn't
+        // the only screen (e.g. if the app is reopened mid-armed-day).
+        lifecycleScope.launch {
+            val burnState = cvc.dashingdog.brandwag.data.repository.BurnStateRepository(this@MainActivity).getBurnState()
+            armSwitch.isChecked = burnState.armed
+        }
+
+        armSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                attemptArm()
+            } else {
+                attemptDisarm()
+            }
+        }
+    }
+
+    private fun attemptArm() {
+        when (val result = armGateController.checkGatesOnArmAttempt()) {
+            is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.Armed -> commitArm()
+            is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.NeedsBatteryExemptionDialog ->
+                showBatteryExemptionDialog()
+            is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.NeedsDndAccessDialog ->
+                showDndAccessDialog()
+            else -> {
+                android.util.Log.w("MainActivity", "Unexpected gate result on arm attempt: $result")
+                snapSwitchOff()
+            }
+        }
+    }
+
+    private fun commitArm() {
+        lifecycleScope.launch {
+            try {
+                armGateController.commitArm()
+                android.util.Log.i("MainActivity", "Armed via real arm switch")
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Failed to persist armed state: ${e.message}")
+                snapSwitchOff()
+                showArmFailedDialog()
+            }
+        }
+    }
+
+    private fun attemptDisarm() {
+        lifecycleScope.launch {
+            // Step 1 (CRITICAL): persist armed=false first. This is the write that
+            // actually governs whether TriggerLogic/future polls treat the farm as
+            // armed - if this fails, the switch must NOT show disarmed, because the
+            // underlying state genuinely is still armed. This is the must-never case:
+            // showing disarmed while still armed risks a real wind-pickup alarm being
+            // silently missed by the user believing they've already disarmed.
+            val armedStateCleared = try {
+                cvc.dashingdog.brandwag.data.repository.BurnStateRepository(this@MainActivity).setArmed(false)
+                true
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "CRITICAL: setArmed(false) failed - still armed: ${e.message}")
+                false
+            }
+
+            if (!armedStateCleared) {
+                snapSwitchOn() // reflect reality - still armed - do NOT show disarmed
+                showDisarmCriticalFailureDialog()
+                return@launch
+            }
+
+            // Step 2 (lower stakes): armed=false is now confirmed persisted. Cancelling
+            // the pending snooze/scheduled alarm is still important, but a failure here
+            // means "a stale alarm might still sound once" not "the farm is silently
+            // still armed" - worth a distinct, less alarming message.
+            try {
+                cvc.dashingdog.brandwag.alarm.AlarmDisarmHandler.onDisarmed(this@MainActivity)
+                android.util.Log.i("MainActivity", "Disarmed via real arm switch")
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Disarmed, but cancelling pending alarm/snooze failed: ${e.message}")
+                showDisarmPartialFailureDialog()
+            }
+        }
+    }
+
+    private fun snapSwitchOn() {
+        armSwitch.setOnCheckedChangeListener(null)
+        armSwitch.isChecked = true
+        bindArmSwitch()
+    }
+
+    private fun snapSwitchOff() {
+        armSwitch.setOnCheckedChangeListener(null)
+        armSwitch.isChecked = false
+        bindArmSwitch()
+    }
+
+    private fun showBatteryExemptionDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.battery_dialog_title))
+            .setMessage(getString(R.string.battery_dialog_body))
+            .setPositiveButton(getString(R.string.battery_dialog_grant)) { _, _ ->
+                pendingGate = PendingGate.BATTERY_EXEMPTION
+                startActivity(armGateController.buildBatteryExemptionIntent())
+            }
+            .setNegativeButton(getString(R.string.dialog_not_now)) { _, _ -> snapSwitchOff() }
+            .setOnCancelListener { snapSwitchOff() }
+            .setCancelable(true)
+            .show()
+    }
+
+    private fun showDndAccessDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.dnd_dialog_title))
+            .setMessage(getString(R.string.dnd_dialog_body))
+            .setPositiveButton(getString(R.string.dnd_dialog_open_settings)) { _, _ ->
+                pendingGate = PendingGate.DND_ACCESS
+                startActivity(armGateController.buildDndAccessSettingsIntent())
+            }
+            .setNegativeButton(getString(R.string.dialog_not_now)) { _, _ -> snapSwitchOff() }
+            .setOnCancelListener { snapSwitchOff() }
+            .setCancelable(true)
+            .show()
+    }
+
+    private fun showBlockedDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.blocked_dialog_title))
+            .setMessage(getString(R.string.blocked_dialog_body))
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (pendingGate == PendingGate.NONE) return
+
+        val gateThatWasPending = pendingGate
+        pendingGate = PendingGate.NONE
+
+        val result = when (gateThatWasPending) {
+            PendingGate.BATTERY_EXEMPTION -> armGateController.recheckAfterBatteryExemptionPrompt()
+            PendingGate.DND_ACCESS -> armGateController.recheckAfterDndAccessPrompt()
+            PendingGate.NONE -> return // unreachable, guarded above
+        }
+
+        when (result) {
+            is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.Armed -> commitArm()
+            is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.NeedsDndAccessDialog ->
+                showDndAccessDialog() // auto-chain, confirmed
+            is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.BlockedBatteryExemptionDenied -> {
+                snapSwitchOff()
+                showBlockedDialog()
+            }
+            is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.BlockedDndAccessDenied -> {
+                snapSwitchOff()
+                showBlockedDialog()
+            }
+            else -> android.util.Log.w("MainActivity", "Unexpected gate result on resume recheck: $result")
+        }
+    }
+
     private fun bindTestTriggers() {
+        findViewById<android.widget.Button>(R.id.debugCheckGateStatusButton).setOnClickListener {
+            // DEBUG ONLY - read-only, no dialogs, no side effects. Quick sanity check of
+            // ArmGateChecks against current device state before exercising the full
+            // ArmGateController sequence below.
+            val batteryOk = cvc.dashingdog.brandwag.arm.ArmGateChecks.isBatteryExemptionGranted(this)
+            val dndOk = cvc.dashingdog.brandwag.arm.ArmGateChecks.isDndAccessGranted(this)
+            android.util.Log.i("MainActivity", "Debug: gate status - battery=$batteryOk dnd=$dndOk")
+        }
+
+        findViewById<android.widget.Button>(R.id.debugRunArmGateSequenceButton).setOnClickListener {
+            val controller = cvc.dashingdog.brandwag.arm.ArmGateController(this)
+            when (val result = controller.checkGatesOnArmAttempt()) {
+                is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.Armed ->
+                    android.util.Log.i("MainActivity", "Debug: both gates already pass")
+                is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.NeedsBatteryExemptionDialog -> {
+                    android.util.Log.i("MainActivity", "Debug: launching battery exemption intent")
+                    pendingGate = PendingGate.BATTERY_EXEMPTION
+                    startActivity(controller.buildBatteryExemptionIntent())
+                }
+                is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.NeedsDndAccessDialog -> {
+                    android.util.Log.i("MainActivity", "Debug: launching DND access settings intent")
+                    pendingGate = PendingGate.DND_ACCESS
+                    startActivity(controller.buildDndAccessSettingsIntent())
+                }
+                else -> android.util.Log.i("MainActivity", "Debug: unexpected result $result")
+            }
+        }
+
         findViewById<android.widget.Button>(R.id.triggerImmediateButton).setOnClickListener {
             // Bypasses AlarmManager entirely - fastest loop for testing sound/vibration/
             // full-screen intent/brightness override while the app is in the foreground.
@@ -123,5 +321,29 @@ class MainActivity : AppCompatActivity() {
                 android.util.Log.i("MainActivity", "Debug: burn state disarmed (no cleanup triggered)")
             }
         }
+    }
+
+    private fun showArmFailedDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.arm_failed_title))
+            .setMessage(getString(R.string.arm_failed_body))
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .show()
+    }
+
+    private fun showDisarmCriticalFailureDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.disarm_critical_failure_title))
+            .setMessage(getString(R.string.disarm_critical_failure_body))
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .show()
+    }
+
+    private fun showDisarmPartialFailureDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.disarm_partial_failure_title))
+            .setMessage(getString(R.string.disarm_partial_failure_body))
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .show()
     }
 }

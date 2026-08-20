@@ -12,7 +12,7 @@
     <string name="alarm_dismiss_button">Dismiss</string>
 
     <string name="test_panel_title">Brandwag – Alarm Test Panel</string>
-    <string name="test_panel_subtitle">Phase 4a manual triggers. Not part of the real armed-day trigger chain (that\'s Phase 5).</string>
+    <string name="test_panel_subtitle">Phase 4 manual triggers. Not part of the real armed-day trigger chain (that\'s Phase 5).</string>
     <string name="test_trigger_immediate">Trigger Alarm Immediately</string>
     <string name="test_trigger_1min">Trigger in 1 Minute (test backgrounded delivery)</string>
     <string name="test_trigger_5min">Trigger in 5 Minutes (test reboot survival)</string>
@@ -20,7 +20,37 @@
     <string name="test_trigger_dedup_wide">Dedup Test: Wide Gap (easy)</string>
     <string name="test_trigger_dedup_tight">Dedup Test: Tight Race (malformed first)</string>
     <string name="test_trigger_dedup_tight_reversed">Dedup Test: Tight Race (good-data first)</string>
+    <string name="arm_switch_label">Arm Burn-Day Monitoring</string>
 
     <string name="debug_arm_button">DEBUG: Arm Burn State (flag only, no cleanup)</string>
     <string name="debug_disarm_button">DEBUG: Disarm Burn State (flag only, no cleanup)</string>
+
+    <string name="debug_check_gate_status">DEBUG: Check Gate Status (log only)</string>
+    <string name="debug_run_arm_gate_sequence">DEBUG: Run Arm Gate Sequence</string>
+
+    <string name="battery_dialog_title">Wind Warning Needs This to Work</string>
+    <string name="battery_dialog_body">Brandwag\'s alarm is a backup check — a second, independent warning in case the wind changes after the fire department\'s all-clear. It doesn\'t replace any of your existing permit conditions or the fire department\'s authority; it only catches a new, unexpected shift in forecast wind.\n\nFor that backup to actually fire when it matters, Android needs to let Brandwag run in the background without being frozen to save battery. Without this, the app can\'t be relied on to sound the alarm at all — not a partial risk, a non-functioning one.\n\nYou\'re free to decline. If you do, Brandwag simply won\'t arm — better to know the backup isn\'t active than to trust one that silently isn\'t working.</string>
+    <string name="battery_dialog_grant">Grant Exemption</string>
+
+    <string name="dnd_dialog_title">One More Permission for the Alarm to Sound</string>
+    <string name="dnd_dialog_body">Brandwag\'s alarm is a backup check — a second, independent warning in case the wind changes after the fire department\'s all-clear. It doesn\'t replace your permit conditions or the fire department\'s authority; it only catches a new, unexpected shift in forecast wind.\n\nIf your phone is in Do Not Disturb when the alarm needs to fire, Android will silently block it unless Brandwag has permission to bypass Do Not Disturb specifically for this alarm. Without that permission, the backup warning can\'t be counted on to actually get through.\n\nYou\'re free to decline. If you do, Brandwag simply won\'t arm — better to know the backup isn\'t active than to trust one that silently isn\'t working.</string>
+    <string name="dnd_dialog_open_settings">Open Notification Access Settings</string>
+
+    <string name="blocked_dialog_title">Backup Warning Not Active</string>
+    <string name="blocked_dialog_body">Brandwag hasn\'t been armed. Without both permissions granted, the alarm can\'t reliably fire if wind conditions shift — so arming would give a false sense of a backup that isn\'t actually working.\n\nYou can grant these anytime from the arm switch, or from Android Settings directly.</string>
+
+    <string name="dialog_not_now">Not Now</string>
+    <string name="dialog_ok">OK</string>
+
+    <string name="arm_failed_title">Couldn\'t Arm</string>
+    <string name="arm_failed_body">Something went wrong saving the armed state. Please try the switch again — Brandwag is NOT armed.</string>
+
+    <string name="disarm_failed_title">Disarm May Be Incomplete</string>
+    <string name="disarm_failed_body">Something went wrong while disarming. Please check the switch state and try again, or restart the app, to make sure Brandwag is correctly disarmed.</string>
+
+    <string name="disarm_critical_failure_title">Still Armed</string>
+    <string name="disarm_critical_failure_body">Brandwag could NOT be disarmed — it is still monitoring and could still sound the alarm. Please try again. If this keeps happening, restart the app before assuming Brandwag is off.</string>
+
+    <string name="disarm_partial_failure_title">Disarmed, But Check This</string>
+    <string name="disarm_partial_failure_body">Brandwag is now disarmed and will not start a new alarm. However, a previously scheduled alarm or snooze may not have been fully cancelled and could still sound once. If it does, it\'s safe to dismiss — Brandwag is genuinely off.</string>
 </resources>
