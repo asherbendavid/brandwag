@@ -3,8 +3,10 @@ package cvc.dashingdog.brandwag.arm
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import cvc.dashingdog.brandwag.MainActivity
 import cvc.dashingdog.brandwag.R
 import cvc.dashingdog.brandwag.data.repository.SafetyPermissionBlipRepository
 
@@ -48,6 +50,20 @@ object SafetyPermissionNotifier {
 
     private fun post(context: Context, notificationId: Int, title: String, body: String) {
         createChannelIfNeeded(context)
+
+        // Plain "open the app" intent - deliberately carries no permission-request extra.
+        // A stale notification tapped days later (after a fresh arm/disarm cycle, possibly
+        // even a different day's burn) must never auto-trigger a permission flow or any
+        // arm-adjacent side effect on its own - it just brings the user to the app, where
+        // a real "Check Permissions" action (button, once built) lets them act deliberately.
+        val contentIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPendingIntent = android.app.PendingIntent.getActivity(
+            context, notificationId, contentIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_brandwag)
             .setContentTitle(title)
@@ -55,11 +71,11 @@ object SafetyPermissionNotifier {
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setContentIntent(contentPendingIntent)
             .build()
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .notify(notificationId, notification)
     }
-
     private fun createChannelIfNeeded(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

@@ -67,4 +67,5 @@
     <string name="blip_dnd_first_body">Brandwag no longer has Do Not Disturb bypass access. If not restored by the next check, Brandwag will auto-disarm — the alarm may be silently blocked during Do Not Disturb without it.</string>
     <string name="blip_dnd_disarm_title">Auto-Disarmed: DND Access Missing</string>
     <string name="blip_dnd_disarm_body">Do Not Disturb access was still missing on the next check. Brandwag has disarmed itself — the alarm could be silently blocked without it. Re-arm once access is restored.</string>
+    <string name="button_check_permissions">Check Permissions</string>
 </resources>

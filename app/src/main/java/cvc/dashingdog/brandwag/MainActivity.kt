@@ -29,6 +29,19 @@ class MainActivity : AppCompatActivity() {
     private enum class PendingGate { NONE, BATTERY_EXEMPTION, DND_ACCESS }
     private var pendingGate = PendingGate.NONE
 
+    private var activeDialog: androidx.appcompat.app.AlertDialog? = null
+
+    private fun showDialog(builder: androidx.appcompat.app.AlertDialog.Builder) {
+        activeDialog?.dismiss()
+        activeDialog = builder.show()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        activeDialog?.dismiss()
+        activeDialog = null
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -122,31 +135,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showBatteryExemptionDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.battery_dialog_title))
-            .setMessage(getString(R.string.battery_dialog_body))
-            .setPositiveButton(getString(R.string.battery_dialog_grant)) { _, _ ->
-                pendingGate = PendingGate.BATTERY_EXEMPTION
-                startActivity(armGateController.buildBatteryExemptionIntent())
-            }
-            .setNegativeButton(getString(R.string.dialog_not_now)) { _, _ -> snapSwitchOff() }
-            .setOnCancelListener { snapSwitchOff() }
-            .setCancelable(true)
-            .show()
+        showDialog(
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(getString(R.string.battery_dialog_title))
+                .setMessage(getString(R.string.battery_dialog_body))
+                .setPositiveButton(getString(R.string.battery_dialog_grant)) { _, _ ->
+                    pendingGate = PendingGate.BATTERY_EXEMPTION
+                    startActivity(armGateController.buildBatteryExemptionIntent())
+                }
+                .setNegativeButton(getString(R.string.dialog_not_now)) { _, _ -> snapSwitchOff() }
+                .setOnCancelListener { snapSwitchOff() }
+                .setCancelable(true)
+        )
     }
 
     private fun showDndAccessDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.dnd_dialog_title))
-            .setMessage(getString(R.string.dnd_dialog_body))
-            .setPositiveButton(getString(R.string.dnd_dialog_open_settings)) { _, _ ->
-                pendingGate = PendingGate.DND_ACCESS
-                startActivity(armGateController.buildDndAccessSettingsIntent())
-            }
-            .setNegativeButton(getString(R.string.dialog_not_now)) { _, _ -> snapSwitchOff() }
-            .setOnCancelListener { snapSwitchOff() }
-            .setCancelable(true)
-            .show()
+        showDialog(
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(getString(R.string.dnd_dialog_title))
+                .setMessage(getString(R.string.dnd_dialog_body))
+                .setPositiveButton(getString(R.string.dnd_dialog_open_settings)) { _, _ ->
+                    pendingGate = PendingGate.DND_ACCESS
+                    startActivity(armGateController.buildDndAccessSettingsIntent())
+                }
+                .setNegativeButton(getString(R.string.dialog_not_now)) { _, _ -> snapSwitchOff() }
+                .setOnCancelListener { snapSwitchOff() }
+                .setCancelable(true)
+        )
     }
 
     private fun showBlockedDialog() {
@@ -317,29 +332,48 @@ class MainActivity : AppCompatActivity() {
                 android.util.Log.i("MainActivity", "Debug: burn state disarmed (no cleanup triggered)")
             }
         }
+
+        findViewById<android.widget.Button>(R.id.checkPermissionsButton).setOnClickListener {
+            // Real user-facing action (not debug-only) - lets someone respond to a blip
+            // notification deliberately, on their own schedule, rather than the notification
+            // itself triggering anything automatically. Reuses the exact same gate sequence
+            // as arming - if both already pass, this is a silent no-op confirmation.
+            when (val result = armGateController.checkGatesOnArmAttempt()) {
+                is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.Armed ->
+                    android.util.Log.i("MainActivity", "Check Permissions: both gates already pass")
+                is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.NeedsBatteryExemptionDialog ->
+                    showBatteryExemptionDialog()
+                is cvc.dashingdog.brandwag.arm.ArmGateController.GateResult.NeedsDndAccessDialog ->
+                    showDndAccessDialog()
+                else -> android.util.Log.w("MainActivity", "Check Permissions: unexpected result $result")
+            }
+        }
     }
 
     private fun showArmFailedDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.arm_failed_title))
-            .setMessage(getString(R.string.arm_failed_body))
-            .setPositiveButton(getString(R.string.dialog_ok), null)
-            .show()
+        showDialog(
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(getString(R.string.arm_failed_title))
+                .setMessage(getString(R.string.arm_failed_body))
+                .setPositiveButton(getString(R.string.dialog_ok), null)
+        )
     }
 
     private fun showDisarmCriticalFailureDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.disarm_critical_failure_title))
-            .setMessage(getString(R.string.disarm_critical_failure_body))
-            .setPositiveButton(getString(R.string.dialog_ok), null)
-            .show()
+        showDialog(
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(getString(R.string.disarm_critical_failure_title))
+                .setMessage(getString(R.string.disarm_critical_failure_body))
+                .setPositiveButton(getString(R.string.dialog_ok), null)
+        )
     }
 
     private fun showDisarmPartialFailureDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.disarm_partial_failure_title))
-            .setMessage(getString(R.string.disarm_partial_failure_body))
-            .setPositiveButton(getString(R.string.dialog_ok), null)
-            .show()
+        showDialog(
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(getString(R.string.disarm_partial_failure_title))
+                .setMessage(getString(R.string.disarm_partial_failure_body))
+                .setPositiveButton(getString(R.string.dialog_ok), null)
+        )
     }
 }
